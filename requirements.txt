@@ -1,0 +1,7 @@
+numpy>=1.24
+scipy>=1.9
+# apenas para o notebook e testes:
+pandas>=1.5
+matplotlib>=3.6
+jupyter
+pytest
