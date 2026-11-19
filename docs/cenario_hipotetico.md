@@ -23,8 +23,10 @@ Premissas para converter em peso e dinheiro:
 |---|---:|---:|---:|---:|---:|---:|
 | 1 | 7 | 39 | 35 | 6,4% | 1,8% | 4 |
 | 2 | 5 | 46 | 40 | 7,7% | 1,8% | 4 |
-| 3 | 5 | 34 | 31 | 6,7% | 2,4% | 3 |
-| 4 | 6 | 46 | 41 | 9,0% | 1,8% | 3 |
+| 3 | 5 | 34 | 31 | 6,7% | 1,9% | 3 |
+| 4 | 6 | 46 | 41 | 9,0% | 1,8% | 4 |
+
+> As bobinas e o papel economizado são sempre os mesmos. A perda semanal e o número de ajustes podem variar um pouco (±1 ajuste, alguns décimos de %) conforme o computador, porque o solver para no tempo limite de 30 s. Com `tempo_limite_s=120` no script, ele chega a 3 ajustes na maioria das semanas, mas leva cerca de 4 minutos.
 
 ## No mês
 
@@ -42,7 +44,7 @@ A perda cai de **6 a 9%** para **cerca de 2%**, com apenas **3 ou 4 ajustes de f
 python exemplos/cenario_hipotetico.py
 ```
 
-Os pedidos são sorteados com semente fixa (`SEMENTE = 42`), então o resultado é sempre o mesmo. Para testar outro cenário, mude as premissas no começo do arquivo [exemplos/cenario_hipotetico.py](../exemplos/cenario_hipotetico.py). Leva cerca de 1 minuto.
+Os pedidos são sorteados com semente fixa (`SEMENTE = 42`), então o resultado é sempre o mesmo. Para testar outro cenário, mude as premissas no começo do arquivo [exemplos/cenario_hipotetico.py](../exemplos/cenario_hipotetico.py). Leva cerca de 1 minuto. Pode aparecer uma linha solta `HighsMipSolverData::...` na saída: é uma mensagem interna do solver e não afeta o resultado.
 
 ## Cuidados na interpretação
 

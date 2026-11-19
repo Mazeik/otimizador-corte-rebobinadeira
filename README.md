@@ -1,6 +1,26 @@
 # Otimizador de Corte para Rebobinadeira
 
-Ferramenta em Python que calcula **a melhor forma de cortar bobinas-mãe de papel** numa rebobinadeira de facas, atendendo os pedidos dos clientes e gerando **a menor apara (perda) possível**.
+[![testes](https://github.com/Mazeik/otimizador-corte-rebobinadeira/actions/workflows/testes.yml/badge.svg)](https://github.com/Mazeik/otimizador-corte-rebobinadeira/actions/workflows/testes.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green)
+
+Ferramenta em Python que calcula **a melhor forma de cortar bobinas-mãe de papel** numa rebobinadeira de facas, atendendo os pedidos dos clientes com **a menor apara (perda) possível** e poucos ajustes de faca.
+
+## Em resumo
+
+| | |
+|---|---|
+| **Problema** | Cortar cada bobina-mãe numa largura só gera de 6% a 9% de apara. Combinar larguras reduz a perda, mas são milhares de combinações possíveis. |
+| **Solução** | Geração de todos os padrões de corte viáveis + **Programação Linear Inteira** (solver HiGHS, via SciPy) para escolher quantas bobinas cortar com cada padrão. |
+| **Resultado (dados fictícios)** | Perda de **6,3% → 1,8%**, 2 bobinas-mãe a menos no lote de exemplo, com **apenas 2 ajustes de faca**. Num mês simulado: 18 bobinas e ≈ 9,5 t de papel economizadas. |
+| **Saída** | Plano pronto para o operador: largura da bobina, posição de cada faca em mm, e CSV que abre no Excel. |
+| **Ferramentas** | Python, NumPy, SciPy (`milp`/HiGHS), pandas, matplotlib, pytest, GitHub Actions |
+
+![Plano de corte ótimo com 2 ajustes de faca](docs/img/padroes_corte.png)
+
+## Contexto
+
+O projeto nasceu de um problema real de chão de fábrica: a rebobinadeira cortava cada bobina-mãe numa largura só e a apara pesava no consumo de papel, a principal matéria-prima. Este repositório reproduz o método com **dados 100% fictícios**, sem nenhuma informação da empresa.
 
 ## O problema
 
@@ -36,34 +56,34 @@ Quando chegam vários pedidos (70, 75, 90, 110 mm...), dá para **combinar largu
    O modelo é resolvido com o solver **HiGHS**, que já vem no SciPy (`scipy.optimize.milp`). Com custo de troca, o problema fica bem mais pesado. Por isso ele é resolvido em duas etapas: primeiro só o papel, depois as trocas, considerando só os ~400 padrões mais promissores (escolhidos pelo *custo reduzido* da relaxação linear).
 3. **Comparação** com o *corte simples* (uma largura por bobina), para medir o ganho.
 
-O resultado traz, para cada padrão, **a largura da bobina-mãe e a posição de cada faca em mm**, prontas para o operador.
-
 ## Resultados (dados fictícios)
 
-Pedidos: 25 × 140 mm, 45 × 110 mm, 80 × 90 mm, 150 × 75 mm, 90 × 70 mm e 60 × 60 mm.
+Pedidos de [dados/pedidos_exemplo.csv](dados/pedidos_exemplo.csv): 25 × 140 mm, 45 × 110 mm, 80 × 90 mm, 150 × 75 mm, 90 × 70 mm e 60 × 60 mm.
 
-| Cenário | Corte simples | Otimizado | Trocas de faca |
+![Perda do corte simples x otimizado](docs/img/comparacao_perda.png)
+
+| Cenário | Corte simples | Otimizado | Ajustes de faca |
 |---|---|---|---:|
-| Bobina 500 mm, refile 5 mm | 83 bobinas, perda 9,11% | **76 bobinas, perda 2,51%** | 13 |
-| Bobina 1100 mm, refile 8 mm | 37 bobinas, perda 6,34% | **35 bobinas, perda 1,82%** | 7 |
-| Bobina 1100 mm, refile 8 mm, `custo_troca = 1` | 37 bobinas | **35 bobinas, perda 1,82%** | **2** |
-| Bobinas de 500, 800 e 1100 mm, refile 8 mm | 39.800 mm de papel, perda 5,88% | **37.600 mm de papel, perda 1,89%** | 17 |
+| Bobina 500 mm, refile 5 mm | 83 bobinas, perda 9,11% | **76 bobinas, perda 2,68%** | não otimizado |
+| Bobina 1100 mm, refile 8 mm | 37 bobinas, perda 6,34% | **35 bobinas, perda 1,82%** | não otimizado |
+| Bobina 1100 mm, refile 8 mm, `custo_troca = 1` | 37 bobinas, perda 6,34% | **35 bobinas, perda 1,82%** | **2** |
+| Bobinas de 500, 800 e 1100 mm, refile 8 mm | 39.800 mm de papel, perda 5,88% | **37.600 mm de papel, perda 1,89%** | não otimizado |
 
-Com a bobina de 1100 mm, o pedido inteiro sai com **apenas 2 ajustes de faca**:
+Sem `custo_troca`, o modelo só minimiza papel e não se importa com quantos padrões usa (de 9 a 15 nesses exemplos). Com `custo_troca = 1`, o **mesmo consumo de papel** sai com **2 ajustes de faca**:
 
 ```
- Padrão 1: cortar 20 bobina(s) de 1100 mm
-   Tiras:  4 x 90 + 6 x 75 + 3 x 70 + 1 x 60  (14 tiras)
+ Padrão 1: cortar 25 bobina(s) de 1100 mm
+   Tiras:  1 x 140 + 1 x 110 + 2 x 90 + 6 x 75 + 2 x 70 + 1 x 60  (13 tiras)
    Apara:  20 mm por bobina (refile + sobra)
-   Facas (15) em mm: [8, 98, 188, 278, 368, 443, 518, 593, 668, 743, 818, 888, 958, 1028, 1088]
-   |░| 90| 90| 90| 90|75|75|75|75|75|75|70|70|70|60|░|
+   Facas (14) em mm: [8, 148, 258, 348, 438, 513, 588, 663, 738, 813, 888, 958, 1028, 1088]
 
- Padrão 2: cortar 15 bobina(s) de 1100 mm
-   Tiras:  2 x 140 + 3 x 110 + 2 x 75 + 2 x 70 + 3 x 60  (12 tiras)
+ Padrão 2: cortar 10 bobina(s) de 1100 mm
+   Tiras:  2 x 110 + 3 x 90 + 5 x 70 + 4 x 60  (14 tiras)
    Apara:  20 mm por bobina (refile + sobra)
-   Facas (13) em mm: [8, 148, 288, 398, 508, 618, 693, 768, 838, 908, 968, 1028, 1088]
-   |░| 140 | 140 |110 |110 |110 |75|75|70|70|60|60|60|░|
+   Facas (15) em mm: [8, 118, 228, 318, 408, 498, 568, 638, 708, 778, 848, 908, 968, 1028, 1088]
 ```
+
+> **Sobre reprodutibilidade:** o consumo de papel e a perda são sempre os mesmos. Já o plano exato pode mudar, porque costuma haver mais de um plano ótimo. Com `custo_troca`, use `--tempo-limite 120`: com o limite padrão (30 s), o solver para antes de provar o ótimo e pode entregar 3 ou 4 ajustes em vez de 2. O próprio relatório avisa quando isso acontece.
 
 ### Cenário hipotético: um mês de produção
 
@@ -80,8 +100,8 @@ python main.py dados/pedidos_exemplo.csv --largura 1100 --refile 8
 # várias larguras disponíveis: o programa escolhe a melhor para cada padrão
 python main.py dados/pedidos_exemplo.csv --largura 500 800 1100 --refile 8
 
-# preferindo menos trocas de faca
-python main.py dados/pedidos_exemplo.csv --largura 1100 --refile 8 --custo-troca 1
+# preferindo menos trocas de faca e salvando o plano para o Excel
+python main.py dados/pedidos_exemplo.csv --largura 1100 --refile 8 --custo-troca 1 --tempo-limite 120 --csv-saida plano.csv
 ```
 
 Opções:
@@ -93,8 +113,10 @@ Opções:
 | `--refile` | refile **mínimo** em cada borda (mm); se sobrar mais, vira apara | 0 |
 | `--custo-troca` | penalidade por padrão diferente, em bobinas | 0 |
 | `--excedente-max` | excedente máximo por item (0.1 = 10%) | sem limite |
+| `--tempo-limite` | tempo máximo do solver, em segundos | 30 |
+| `--csv-saida` | salva o plano de corte em CSV (separador `;`, abre no Excel) | não salva |
 
-O CSV de pedidos tem as colunas `cliente,largura_mm,quantidade` (ver [dados/pedidos_exemplo.csv](dados/pedidos_exemplo.csv)).
+O CSV de pedidos tem as colunas `cliente,largura_mm,quantidade` (ver [dados/pedidos_exemplo.csv](dados/pedidos_exemplo.csv)). Também aceita `;` como separador, que é o formato do Excel em português. Se alguma linha tiver valor inválido, o programa diz qual linha corrigir.
 
 Também dá para usar direto no Python:
 
@@ -116,13 +138,15 @@ O notebook [notebooks/demonstracao.ipynb](notebooks/demonstracao.ipynb) mostra o
 ├── otimizador_corte/
 │   ├── padroes.py       # geração dos padrões de corte
 │   ├── otimizador.py    # modelo de otimização e comparação
-│   └── relatorio.py     # leitura do CSV e relatório para o operador
+│   └── relatorio.py     # leitura/gravação de CSV e relatório para o operador
 ├── dados/
 │   └── pedidos_exemplo.csv   # pedidos fictícios
 ├── docs/
-│   └── cenario_hipotetico.md # um mês de produção simulado
+│   ├── cenario_hipotetico.md # um mês de produção simulado
+│   └── img/                  # figuras do README
 ├── exemplos/
-│   └── cenario_hipotetico.py # script que gera o cenário
+│   ├── cenario_hipotetico.py # script que gera o cenário
+│   └── gerar_figuras.py      # script que gera as figuras
 ├── notebooks/
 │   └── demonstracao.ipynb
 ├── tests/
@@ -131,14 +155,24 @@ O notebook [notebooks/demonstracao.ipynb](notebooks/demonstracao.ipynb) mostra o
 └── requirements.txt
 ```
 
-Para rodar os testes: `python -m pytest`
+Para rodar os testes: `python -m pytest` (também rodam automaticamente no GitHub a cada envio).
 
 ## Limitações e próximos passos
 
 - Considera só a **largura**; não trata comprimento/diâmetro das bobinas-filhas nem emendas.
 - Não limita quantas bobinas-mãe de cada largura existem em estoque.
-- Em casos grandes (várias larguras de bobina-mãe, custo de troca), o solver para no tempo limite (30 s por padrão) e informa **quão longe do ótimo** a solução pode estar. O próximo passo seria usar **geração de colunas** (Gilmore-Gomory).
+- Bobinas-filhas excedentes (quando o padrão produz um pouco além do pedido) contam como produto, não como perda. Na prática, precisam ter saída.
+- Em casos grandes (várias larguras de bobina-mãe, custo de troca), o solver para no tempo limite e informa **quão longe do ótimo** a solução pode estar. O próximo passo seria usar **geração de colunas** (Gilmore-Gomory).
 - Possíveis extensões: prioridade e prazo por cliente, estoque de bobinas-mãe, interface web.
+
+## English summary
+
+Python tool for the **one-dimensional cutting stock problem** on a paper slitter-rewinder (17 knives, parent rolls of 500–1100 mm). It enumerates feasible knife patterns and solves an **integer linear program** with SciPy's HiGHS solver, optionally penalizing knife changes. On the (fictitious) sample orders, trim loss drops from 6.3% to 1.8% with only 2 knife setups. All data in this repository is fictitious.
+
+## Autor
+
+**John Wesley da Silva**, Engenheiro de Produção (processos, qualidade, PCP e logística).
+[LinkedIn](https://www.linkedin.com/in/john-wesley-da-silva/)
 
 ## Aviso
 

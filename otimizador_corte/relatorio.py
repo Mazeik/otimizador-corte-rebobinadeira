@@ -9,19 +9,67 @@ from typing import List
 from .otimizador import Configuracao, Pedido, Resultado
 
 
+COLUNAS_OBRIGATORIAS = ("largura_mm", "quantidade")
+
+
 def ler_pedidos_csv(caminho: str | Path) -> List[Pedido]:
-    """Lê um CSV com as colunas: cliente, largura_mm, quantidade."""
+    """Lê um CSV com as colunas: cliente, largura_mm, quantidade.
+
+    Aceita os dois formatos comuns:
+      * vírgula como separador (padrão internacional);
+      * ponto e vírgula, que é como o Excel em português salva CSV.
+    Linhas com valores inválidos geram um erro que diz qual linha corrigir.
+    """
+    # utf-8-sig ignora o "BOM" que o Excel coloca no início do arquivo.
+    with open(caminho, newline="", encoding="utf-8-sig") as f:
+        texto = f.read()
+
+    primeira_linha = texto.splitlines()[0] if texto.strip() else ""
+    separador = ";" if primeira_linha.count(";") > primeira_linha.count(",") else ","
+    leitor = csv.DictReader(texto.splitlines(), delimiter=separador)
+
+    # Normaliza os nomes das colunas (tira espaços e deixa minúsculo).
+    colunas = [c.strip().lower() for c in (leitor.fieldnames or [])]
+    faltando = [c for c in COLUNAS_OBRIGATORIAS if c not in colunas]
+    if faltando:
+        raise ValueError(f"Coluna(s) obrigatória(s) ausente(s) no CSV: {', '.join(faltando)}.")
+
     pedidos: List[Pedido] = []
-    with open(caminho, newline="", encoding="utf-8") as f:
-        for linha in csv.DictReader(f):
-            pedidos.append(
-                Pedido(
-                    largura_mm=int(linha["largura_mm"]),
-                    quantidade=int(linha["quantidade"]),
-                    cliente=linha.get("cliente", ""),
-                )
-            )
+    for n_linha, bruta in enumerate(leitor, start=2):  # linha 1 = cabeçalho
+        linha = {k.strip().lower(): (v or "").strip() for k, v in bruta.items() if k}
+        if not linha.get("largura_mm") and not linha.get("quantidade"):
+            continue  # linha em branco
+        try:
+            largura = int(linha["largura_mm"])
+            quantidade = int(linha["quantidade"])
+        except ValueError:
+            raise ValueError(
+                f"Linha {n_linha}: largura e quantidade precisam ser números inteiros "
+                f"(lido: largura='{linha['largura_mm']}', quantidade='{linha['quantidade']}')."
+            ) from None
+        if largura <= 0 or quantidade < 0:
+            raise ValueError(f"Linha {n_linha}: largura deve ser > 0 e quantidade >= 0.")
+        pedidos.append(Pedido(largura, quantidade, linha.get("cliente", "")))
     return pedidos
+
+
+def salvar_plano_csv(res: Resultado, caminho: str | Path) -> None:
+    """Salva o plano de corte em CSV (separador ';' para abrir direto no Excel BR).
+
+    Uma linha por padrão: largura da bobina-mãe, quantas cortar, composição
+    das tiras, apara por bobina e posição das facas.
+    """
+    with open(caminho, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f, delimiter=";")
+        w.writerow(
+            ["padrao", "largura_bobina_mae_mm", "bobinas_a_cortar", "tiras",
+             "n_tiras", "apara_mm_por_bobina", "posicao_facas_mm"]
+        )
+        for i, p in enumerate(res.planos, 1):
+            composicao = " + ".join(f"{k}x{w_}" for w_, k in sorted(p.padrao.items(), reverse=True))
+            facas = " ".join(str(x) for x in p.posicoes_facas)
+            w.writerow([i, p.largura_bobina_mm, p.repeticoes, composicao,
+                        p.tiras_por_bobina, p.apara_mm, facas])
 
 
 def desenhar_padrao(padrao: dict, largura_bobina: int, cfg: Configuracao) -> str:

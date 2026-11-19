@@ -71,3 +71,40 @@ def test_refile_maior_reduz_largura_util():
     res = otimizar([Pedido(70, 15)], Configuracao(largura_bobina_mm=1100, refile_mm=25))
     assert res.planos[0].tiras_por_bobina == 15
     assert res.planos[0].posicoes_facas[0] == 25
+
+
+# --------------------------------------------------------------------------- #
+# Leitura e gravação de CSV
+# --------------------------------------------------------------------------- #
+from otimizador_corte import ler_pedidos_csv, salvar_plano_csv  # noqa: E402
+
+
+def test_le_csv_do_excel_brasileiro(tmp_path):
+    # Excel em português salva com ';' e às vezes com BOM no início.
+    arq = tmp_path / "pedidos.csv"
+    arq.write_text("﻿cliente;largura_mm;quantidade\nA;75;120\nB;70;90\n", encoding="utf-8")
+    pedidos = ler_pedidos_csv(arq)
+    assert [(p.largura_mm, p.quantidade) for p in pedidos] == [(75, 120), (70, 90)]
+
+
+def test_csv_com_valor_invalido_diz_a_linha(tmp_path):
+    arq = tmp_path / "pedidos.csv"
+    arq.write_text("cliente,largura_mm,quantidade\nA,75,120\nB,setenta,90\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Linha 3"):
+        ler_pedidos_csv(arq)
+
+
+def test_csv_sem_coluna_obrigatoria(tmp_path):
+    arq = tmp_path / "pedidos.csv"
+    arq.write_text("cliente,largura\nA,75\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="largura_mm"):
+        ler_pedidos_csv(arq)
+
+
+def test_salva_plano_em_csv(tmp_path):
+    res = otimizar([Pedido(75, 60)], Configuracao(largura_bobina_mm=500))
+    arq = tmp_path / "plano.csv"
+    salvar_plano_csv(res, arq)
+    linhas = arq.read_text(encoding="utf-8-sig").splitlines()
+    assert linhas[0].startswith("padrao;largura_bobina_mae_mm")
+    assert linhas[1].split(";")[2] == "10"  # 10 bobinas a cortar

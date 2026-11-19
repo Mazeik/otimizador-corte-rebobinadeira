@@ -10,7 +10,13 @@ Veja `python main.py --help` para todas as opções.
 import argparse
 import sys
 
-from otimizador_corte import Configuracao, formatar_resultado, ler_pedidos_csv, otimizar
+from otimizador_corte import (
+    Configuracao,
+    formatar_resultado,
+    ler_pedidos_csv,
+    otimizar,
+    salvar_plano_csv,
+)
 
 
 def main() -> int:
@@ -42,6 +48,17 @@ def main() -> int:
         default=None,
         help="excedente máximo por item, fração (ex.: 0.1 = 10%%)",
     )
+    ap.add_argument(
+        "--tempo-limite",
+        type=float,
+        default=30.0,
+        help="tempo máximo do solver em segundos (com --custo-troca, use 120 para chegar ao ótimo)",
+    )
+    ap.add_argument(
+        "--csv-saida",
+        default=None,
+        help="salva o plano de corte em CSV (abre direto no Excel)",
+    )
     args = ap.parse_args()
 
     if hasattr(sys.stdout, "reconfigure"):
@@ -53,10 +70,20 @@ def main() -> int:
         refile_mm=args.refile,
         custo_troca=args.custo_troca,
         excedente_max=args.excedente_max,
+        tempo_limite_s=args.tempo_limite,
     )
-    pedidos = ler_pedidos_csv(args.csv)
-    resultado = otimizar(pedidos, cfg)
+    try:
+        pedidos = ler_pedidos_csv(args.csv)
+        resultado = otimizar(pedidos, cfg)
+    except (ValueError, RuntimeError, FileNotFoundError) as erro:
+        # Mensagem curta para o usuário, sem o "traceback" do Python.
+        print(f"Erro: {erro}", file=sys.stderr)
+        return 1
+
     print(formatar_resultado(resultado, cfg))
+    if args.csv_saida:
+        salvar_plano_csv(resultado, args.csv_saida)
+        print(f"\nPlano salvo em {args.csv_saida}")
     return 0
 
 

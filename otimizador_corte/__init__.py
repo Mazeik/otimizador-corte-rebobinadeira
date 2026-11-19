@@ -9,7 +9,7 @@ from .otimizador import (
     otimizar,
 )
 from .padroes import gerar_padroes
-from .relatorio import formatar_resultado, ler_pedidos_csv
+from .relatorio import formatar_resultado, ler_pedidos_csv, salvar_plano_csv
 
 __all__ = [
     "Configuracao",
@@ -21,4 +21,5 @@ __all__ = [
     "gerar_padroes",
     "formatar_resultado",
     "ler_pedidos_csv",
+    "salvar_plano_csv",
 ]
